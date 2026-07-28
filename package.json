@@ -1,0 +1,18 @@
+{
+  "name": "pecs-vue-app",
+  "version": "1.0.0",
+  "description": "PECS Cards Application - Picture Exchange Communication System",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.0.0",
+    "vite": "^5.0.0"
+  }
+}

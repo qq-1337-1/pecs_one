@@ -1,0 +1,50 @@
+[
+  {
+    "id": "11111111-1111-1111-1111-111111111111",
+    "name": "Apple",
+    "svg": {
+      "viewBox": "0 0 100 100",
+      "content": "<circle cx='50' cy='50' r='40' fill='#ff6b6b'/><path d='M50 10 Q55 20 50 30' stroke='#8b4513' stroke-width='2' fill='none'/><ellipse cx='55' cy='25' rx='8' ry='5' fill='#2d5016'/>"
+    }
+  },
+  {
+    "id": "22222222-2222-2222-2222-222222222222",
+    "name": "Sun",
+    "svg": {
+      "viewBox": "0 0 100 100",
+      "content": "<circle cx='50' cy='50' r='25' fill='#ffd700'/><g stroke='#ffd700' stroke-width='3' stroke-linecap='round'><line x1='50' y1='10' x2='50' y2='5'/><line x1='50' y1='90' x2='50' y2='95'/><line x1='10' y1='50' x2='5' y2='50'/><line x1='90' y1='50' x2='95' y2='50'/><line x1='18' y1='18' x2='14' y2='14'/><line x1='82' y1='82' x2='86' y2='86'/><line x1='82' y1='18' x2='86' y2='14'/><line x1='18' y1='82' x2='14' y2='86'/></g>"
+    }
+  },
+  {
+    "id": "33333333-3333-3333-3333-333333333333",
+    "name": "House",
+    "svg": {
+      "viewBox": "0 0 100 100",
+      "content": "<polygon points='50,20 20,50 30,50 30,80 70,80 70,50 80,50' fill='#e8b05f' stroke='#8b6914' stroke-width='2'/><rect x='40' y='55' width='20' height='25' fill='#87ceeb'/><polygon points='50,20 30,35 70,35' fill='#c41e3a'/>"
+    }
+  },
+  {
+    "id": "44444444-4444-4444-4444-444444444444",
+    "name": "Water",
+    "svg": {
+      "viewBox": "0 0 100 100",
+      "content": "<circle cx='50' cy='50' r='35' fill='#4db8ff' opacity='0.3'/><path d='M 20 50 Q 30 40 40 50 T 60 50 T 80 50' stroke='#0066cc' stroke-width='2' fill='none'/><path d='M 20 60 Q 30 50 40 60 T 60 60 T 80 60' stroke='#0066cc' stroke-width='2' fill='none'/><path d='M 20 70 Q 30 60 40 70 T 60 70 T 80 70' stroke='#0066cc' stroke-width='2' fill='none'/>"
+    }
+  },
+  {
+    "id": "55555555-5555-5555-5555-555555555555",
+    "name": "Flower",
+    "svg": {
+      "viewBox": "0 0 100 100",
+      "content": "<line x1='50' y1='80' x2='50' y2='30' stroke='#2d5016' stroke-width='3'/><circle cx='50' cy='25' r='12' fill='#ffd700'/><circle cx='50' cy='10' r='8' fill='#ff69b4'/><circle cx='65' cy='15' r='8' fill='#ff69b4'/><circle cx='70' cy='30' r='8' fill='#ff69b4'/><circle cx='65' cy='45' r='8' fill='#ff69b4'/><circle cx='50' cy='40' r='8' fill='#ff69b4'/><circle cx='35' cy='45' r='8' fill='#ff69b4'/><circle cx='30' cy='30' r='8' fill='#ff69b4'/><circle cx='35' cy='15' r='8' fill='#ff69b4'/>"
+    }
+  },
+  {
+    "id": "66666666-6666-6666-6666-666666666666",
+    "name": "Cat",
+    "svg": {
+      "viewBox": "0 0 100 100",
+      "content": "<circle cx='50' cy='55' r='30' fill='#ff9b54'/><circle cx='50' cy='35' r='25' fill='#ff9b54'/><triangle points='35,15 30,5 40,10'/><triangle points='65,15 70,5 60,10'/><circle cx='42' cy='30' r='3' fill='#000'/><circle cx='58' cy='30' r='3' fill='#000'/><polygon points='50,40 48,45 52,45' fill='#ff69b4'/><path d='M40 45 Q35 48 30 46' stroke='#000' stroke-width='1.5' fill='none'/><path d='M60 45 Q65 48 70 46' stroke='#000' stroke-width='1.5' fill='none'/>"
+    }
+  }
+]

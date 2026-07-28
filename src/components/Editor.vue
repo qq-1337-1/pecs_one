@@ -99,13 +99,26 @@
 
         <div class="sidebar-section">
           <h3>Export</h3>
+          <label class="input-label" for="pecs-name">Name</label>
+          <input
+            id="pecs-name"
+            v-model="name"
+            class="text-input"
+            placeholder="Enter PECS name"
+          />
           <textarea
             v-model="svgCode"
             class="svg-export"
             readonly
             @click="$event.target.select()"
           ></textarea>
-          <button class="btn-copy" @click="copySVG">📋 Copy SVG</button>
+          <button
+            class="btn-save"
+            :disabled="!name.trim()"
+            @click="savePecs"
+          >
+            💾 Save PECS
+          </button>
         </div>
       </div>
     </div>
@@ -114,6 +127,8 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { addPecsCard } from '../utils/storage'
+import { generateGUID } from '../utils/guid'
 
 const tool = ref('line')
 const isDrawing = ref(false)
@@ -124,6 +139,7 @@ const previewLine = ref(null)
 const previewPolyline = ref(null)
 const svgCanvas = ref(null)
 const lastClickTime = ref(0)
+const name = ref('')
 
 const svgCode = computed(() => {
   let svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">\n'
@@ -241,9 +257,29 @@ const saveDrawing = () => {
   alert('Drawing saved to LocalStorage!')
 }
 
-const copySVG = () => {
-  navigator.clipboard.writeText(svgCode.value)
-  alert('SVG copied to clipboard!')
+const savePecs = async () => {
+  const trimmedName = name.value.trim()
+  if (!trimmedName) {
+    alert('Please enter a name before saving.')
+    return
+  }
+
+  const card = {
+    id: generateGUID(),
+    name: trimmedName,
+    svg: {
+      viewBox: '0 0 800 600',
+      content: svgCode.value
+    }
+  }
+
+  try {
+    await addPecsCard(card)
+    alert(`PECS "${trimmedName}" saved.`)
+  } catch (error) {
+    console.error('Failed to save PECS card:', error)
+    alert('Failed to save PECS card. Please try again.')
+  }
 }
 </script>
 
@@ -370,7 +406,24 @@ const copySVG = () => {
   overflow-y: auto;
 }
 
-.btn-copy {
+.input-label {
+  display: block;
+  margin-bottom: 0.4rem;
+  color: #374151;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.text-input {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.9rem;
+  color: #111827;
+}
+
+.btn-save {
   width: 100%;
   padding: 0.5rem;
   background-color: #6366f1;
@@ -383,8 +436,13 @@ const copySVG = () => {
   transition: background-color 0.2s;
 }
 
-.btn-copy:hover {
+.btn-save:hover {
   background-color: #4f46e5;
+}
+
+.btn-save:disabled {
+  background-color: #c7d2fe;
+  cursor: not-allowed;
 }
 
 @media (max-width: 1024px) {

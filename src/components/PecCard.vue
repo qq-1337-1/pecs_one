@@ -24,7 +24,7 @@
       @click.stop="handleAppend"
       title="Add to board"
     >
-      ➜
+      ⬅
     </button>
   </div>
 </template>

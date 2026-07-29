@@ -35,7 +35,7 @@
           :draggable="true"
           @dragstart="handleDragStart($event, card, 'pocket')"
         >
-          <PecCard :card="card" :draggable="true" :showRemove="false" />
+          <PecCard :card="card" :draggable="true" :showRemove="false" :showAppend="true" @append="appendToBoard(card.id)" />
         </div>
         <div v-if="filteredPocketCards.length === 0" class="empty-state">
           {{ searchQuery ? 'No cards match your search' : 'No cards available' }}
@@ -60,7 +60,10 @@ const activeCards = computed(() =>
 )
 
 const boardCards = computed(() =>
-  activeCards.value.filter((card) => boardIds.value.includes(card.id))
+  // Preserve explicit board ordering stored in `boardIds`
+  boardIds.value
+    .map((id) => activeCards.value.find((card) => card.id === id))
+    .filter(Boolean)
 )
 
 const pocketCards = computed(() =>
@@ -101,11 +104,19 @@ const handleDrop = (event) => {
     const card = JSON.parse(cardData)
 
     if (!boardIds.value.includes(card.id)) {
+      // append to end so last dropped is last visible
       boardIds.value.push(card.id)
       saveBoardState(boardIds.value)
     }
   } catch (error) {
     console.error('Drop failed:', error)
+  }
+}
+
+const appendToBoard = (cardId) => {
+  if (!boardIds.value.includes(cardId)) {
+    boardIds.value.push(cardId)
+    saveBoardState(boardIds.value)
   }
 }
 

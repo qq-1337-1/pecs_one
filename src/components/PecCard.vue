@@ -18,6 +18,14 @@
     >
       ✕
     </button>
+    <button
+      v-if="showAppend"
+      class="btn-append"
+      @click.stop="handleAppend"
+      title="Add to board"
+    >
+      ➜
+    </button>
   </div>
 </template>
 
@@ -36,10 +44,14 @@ const props = defineProps({
   showRemove: {
     type: Boolean,
     default: false
+  },
+  showAppend: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['remove'])
+const emit = defineEmits(['remove', 'append'])
 
 const isSvgContent = computed(() => {
   return typeof props.card.svg === 'object' && props.card.svg.content
@@ -47,6 +59,10 @@ const isSvgContent = computed(() => {
 
 const handleRemove = () => {
   emit('remove', props.card.id)
+}
+
+const handleAppend = () => {
+  emit('append', props.card.id)
 }
 </script>
 
@@ -131,5 +147,34 @@ const handleRemove = () => {
 
 .btn-remove:hover {
   background-color: #dc2626;
+}
+
+.btn-append {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  background-color: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s, transform 0.12s;
+  opacity: 0;
+}
+
+.pec-card:hover .btn-append {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.btn-append:hover {
+  background-color: #4f46e5;
 }
 </style>

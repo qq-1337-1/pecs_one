@@ -14,6 +14,13 @@
       </button>
       <button
         class="tab-button"
+        :class="{ active: activeTab === 'cards' }"
+        @click="activeTab = 'cards'"
+      >
+        🗂 Cards
+      </button>
+      <button
+        class="tab-button"
         :class="{ active: activeTab === 'editor' }"
         @click="activeTab = 'editor'"
       >
@@ -23,6 +30,7 @@
 
     <main class="app-content">
       <Board v-if="activeTab === 'board'" />
+      <CardsPage v-if="activeTab === 'cards'" />
       <Editor v-if="activeTab === 'editor'" />
     </main>
   </div>
@@ -31,6 +39,7 @@
 <script setup>
 import { ref } from 'vue'
 import Board from './components/Board.vue'
+import CardsPage from './components/CardsPage.vue'
 import Editor from './components/Editor.vue'
 
 const activeTab = ref('board')

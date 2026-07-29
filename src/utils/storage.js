@@ -5,30 +5,46 @@
 const STORAGE_KEY = 'pecs_cards'
 const BOARD_STATE_KEY = 'pecs_board_state'
 
+const normalizeCards = (cards) =>
+  cards.map((card) => ({
+    ...card,
+    active: card.active !== false
+  }))
+
 /**
  * Load PECS cards from LocalStorage or fetch from static file
  */
 export async function loadPecsCards() {
-  // Try to get from LocalStorage first
   const stored = localStorage.getItem(STORAGE_KEY)
   if (stored) {
     try {
-      return JSON.parse(stored)
+      const cards = JSON.parse(stored)
+      return normalizeCards(cards)
     } catch (error) {
       console.error('Failed to parse stored cards:', error)
     }
   }
 
-  // Fetch from static file
-  try {
-    const response = await fetch('/data/PECS.cards')
+  const tryFetch = async (path) => {
+    const response = await fetch(path)
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`)
     const cards = await response.json()
+    return normalizeCards(cards)
+  }
+
+  try {
+    const cards = await tryFetch('/data/PECS.cards')
     savePecsCards(cards)
     return cards
-  } catch (error) {
-    console.error('Failed to load PECS cards:', error)
-    return []
+  } catch (firstError) {
+    try {
+      const cards = await tryFetch('/data/PECS.cards.json')
+      savePecsCards(cards)
+      return cards
+    } catch (secondError) {
+      console.error('Failed to load PECS cards:', firstError, secondError)
+      return []
+    }
   }
 }
 
@@ -48,7 +64,8 @@ export function savePecsCards(cards) {
  */
 export function addPecsCard(card) {
   return loadPecsCards().then((cards) => {
-    cards.push(card)
+    const cardWithActive = { ...card, active: card.active !== false }
+    cards.push(cardWithActive)
     savePecsCards(cards)
     return cards
   })
@@ -64,7 +81,7 @@ export function updatePecsCard(cardId, updates) {
       cards[index] = { ...cards[index], ...updates }
       savePecsCards(cards)
     }
-    return cards
+    return normalizeCards(cards)
   })
 }
 
@@ -75,12 +92,12 @@ export function deletePecsCard(cardId) {
   return loadPecsCards().then((cards) => {
     const filtered = cards.filter((c) => c.id !== cardId)
     savePecsCards(filtered)
-    return filtered
+    return normalizeCards(filtered)
   })
 }
 
 /**
- * Save board state (arrangement of cards)
+ * Save board state (array of card ids)
  */
 export function saveBoardState(state) {
   try {
@@ -91,12 +108,21 @@ export function saveBoardState(state) {
 }
 
 /**
- * Load board state
+ * Load board state (return array of card ids)
  */
 export function loadBoardState() {
   try {
     const stored = localStorage.getItem(BOARD_STATE_KEY)
-    return stored ? JSON.parse(stored) : []
+    if (!stored) return []
+
+    const parsed = JSON.parse(stored)
+    if (!Array.isArray(parsed)) return []
+    return parsed.map((item) => {
+      if (item && typeof item === 'object' && 'id' in item) {
+        return item.id
+      }
+      return item
+    }).filter((id) => typeof id === 'string')
   } catch (error) {
     console.error('Failed to load board state:', error)
     return []

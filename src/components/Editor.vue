@@ -270,7 +270,8 @@ const savePecs = async () => {
     svg: {
       viewBox: '0 0 800 600',
       content: svgCode.value
-    }
+    },
+    active: true
   }
 
   try {

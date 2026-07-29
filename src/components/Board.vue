@@ -52,13 +52,20 @@ import SearchFilter from './SearchFilter.vue'
 import { loadPecsCards, loadBoardState, saveBoardState } from '../utils/storage'
 
 const allCards = ref([])
-const boardCards = ref([])
+const boardIds = ref([])
 const searchQuery = ref('')
 
-const pocketCards = computed(() => {
-  const boardIds = new Set(boardCards.value.map((c) => c.id))
-  return allCards.value.filter((card) => !boardIds.has(card.id))
-})
+const activeCards = computed(() =>
+  allCards.value.filter((card) => card.active !== false)
+)
+
+const boardCards = computed(() =>
+  activeCards.value.filter((card) => boardIds.value.includes(card.id))
+)
+
+const pocketCards = computed(() =>
+  activeCards.value.filter((card) => !boardIds.value.includes(card.id))
+)
 
 const filteredPocketCards = computed(() => {
   if (!searchQuery.value) return pocketCards.value
@@ -70,7 +77,7 @@ const filteredPocketCards = computed(() => {
 
 onMounted(async () => {
   allCards.value = await loadPecsCards()
-  boardCards.value = await loadBoardState()
+  boardIds.value = await loadBoardState()
 })
 
 const handleDragStart = (event, card, source) => {
@@ -93,10 +100,9 @@ const handleDrop = (event) => {
     const cardData = event.dataTransfer.getData('card')
     const card = JSON.parse(cardData)
 
-    // Check if card is already on board
-    if (!boardCards.value.find((c) => c.id === card.id)) {
-      boardCards.value.push(card)
-      saveBoardState(boardCards.value)
+    if (!boardIds.value.includes(card.id)) {
+      boardIds.value.push(card.id)
+      saveBoardState(boardIds.value)
     }
   } catch (error) {
     console.error('Drop failed:', error)
@@ -104,14 +110,14 @@ const handleDrop = (event) => {
 }
 
 const removeFromBoard = (cardId) => {
-  boardCards.value = boardCards.value.filter((c) => c.id !== cardId)
-  saveBoardState(boardCards.value)
+  boardIds.value = boardIds.value.filter((id) => id !== cardId)
+  saveBoardState(boardIds.value)
 }
 
 const clearBoard = () => {
   if (confirm('Clear all cards from the board?')) {
-    boardCards.value = []
-    saveBoardState(boardCards.value)
+    boardIds.value = []
+    saveBoardState(boardIds.value)
   }
 }
 </script>

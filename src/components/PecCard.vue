@@ -11,7 +11,7 @@
     </div>
     <div class="card-name">{{ card.name }}</div>
     <button
-      v-if="draggable"
+      v-if="showRemove"
       class="btn-remove"
       @click.stop="handleRemove"
       title="Remove from board"
@@ -30,6 +30,10 @@ const props = defineProps({
     required: true
   },
   draggable: {
+    type: Boolean,
+    default: false
+  },
+  showRemove: {
     type: Boolean,
     default: false
   }

@@ -4,7 +4,7 @@
       <div class="board-header">
         <h2>Board</h2>
         <button class="btn-clear" @click="clearBoard" title="Clear all cards from board">
-          Clear Board
+          🗑️
         </button>
       </div>
       <div class="board" @drop="handleDrop" @dragover="handleDragOver">
@@ -15,7 +15,7 @@
           :draggable="true"
           @dragstart="handleDragStart($event, card, 'board')"
         >
-          <PecCard :card="card" draggable @remove="removeFromBoard(card.id)" />
+          <PecCard :card="card" :draggable="true" :showRemove="true" @remove="removeFromBoard(card.id)" />
         </div>
         <div v-if="boardCards.length === 0" class="empty-state">
           Drag cards here to arrange them
@@ -28,14 +28,14 @@
         <h2>Pocket (Available Cards)</h2>
       </div>
       <SearchFilter v-model="searchQuery" />
-      <div class="pocket">
+      <div class="pocket" @drop="handlePocketDrop" @dragover="handleDragOver">
         <div
           v-for="card in filteredPocketCards"
           :key="card.id"
           :draggable="true"
           @dragstart="handleDragStart($event, card, 'pocket')"
         >
-          <PecCard :card="card" draggable />
+          <PecCard :card="card" :draggable="true" :showRemove="false" />
         </div>
         <div v-if="filteredPocketCards.length === 0" class="empty-state">
           {{ searchQuery ? 'No cards match your search' : 'No cards available' }}
@@ -109,16 +109,33 @@ const handleDrop = (event) => {
   }
 }
 
+const handlePocketDrop = (event) => {
+  event.preventDefault()
+  event.currentTarget.classList.remove('drag-over')
+
+  try {
+    const cardData = event.dataTransfer.getData('card')
+    const source = event.dataTransfer.getData('source')
+    const card = JSON.parse(cardData)
+
+    // Only remove from board if card was dragged from board
+    if (source === 'board' && boardIds.value.includes(card.id)) {
+      boardIds.value = boardIds.value.filter((id) => id !== card.id)
+      saveBoardState(boardIds.value)
+    }
+  } catch (error) {
+    console.error('Drop failed:', error)
+  }
+}
+
 const removeFromBoard = (cardId) => {
   boardIds.value = boardIds.value.filter((id) => id !== cardId)
   saveBoardState(boardIds.value)
 }
 
 const clearBoard = () => {
-  if (confirm('Clear all cards from the board?')) {
-    boardIds.value = []
-    saveBoardState(boardIds.value)
-  }
+  boardIds.value = []
+  saveBoardState(boardIds.value)
 }
 </script>
 
@@ -160,19 +177,17 @@ const clearBoard = () => {
 }
 
 .btn-clear {
-  padding: 0.5rem 1rem;
-  background-color: #ef4444;
-  color: white;
+  padding: 0.25rem 0.5rem;
+  background-color: transparent;
   border: none;
   border-radius: 0.375rem;
   cursor: pointer;
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: 1.25rem;
   transition: background-color 0.2s;
 }
 
 .btn-clear:hover {
-  background-color: #dc2626;
+  background-color: #f3f4f6;
 }
 
 .board {
@@ -183,6 +198,15 @@ const clearBoard = () => {
   padding: 1rem;
   overflow-y: auto;
   background-color: #fafbfc;
+  background-image: repeating-linear-gradient(
+    180deg,
+    transparent,
+    transparent calc(33.33% - 1px),
+    #cbd5e1 calc(33.33% - 1px),
+    #cbd5e1 33.33%,
+    transparent 33.33%
+  );
+  background-size: 100% 100%;
   border: 2px dashed #cbd5e1;
   border-radius: 0.375rem;
   min-height: 200px;

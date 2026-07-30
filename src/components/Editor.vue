@@ -51,45 +51,44 @@
         <rect width="100%" height="100%" fill="url(#grid)" />
 
         <!-- Drawing elements -->
-        <line
-          v-for="(line, idx) in lines"
-          :key="`line-${idx}`"
-          :x1="line.x1"
-          :y1="line.y1"
-          :x2="line.x2"
-          :y2="line.y2"
-          :stroke="line.stroke"
-          :stroke-width="line.strokeWidth"
-          :marker-start="getMarkerId(line.startStyle)"
-          :marker-end="getMarkerId(line.endStyle)"
-          :style="{ color: line.stroke }"
-          class="drawing-element"
-        />
-        <polyline
-          v-for="(polyline, idx) in polylines"
-          :key="`polyline-${idx}`"
-          :points="polyline.points"
-          :stroke="polyline.stroke"
-          :stroke-width="polyline.strokeWidth"
-          :marker-start="getMarkerId(polyline.startStyle)"
-          :marker-end="getMarkerId(polyline.endStyle)"
-          fill="none"
-          stroke-linejoin="round"
-          stroke-linecap="round"
-          :style="{ color: polyline.stroke }"
-          class="drawing-element"
-        />
-        <polygon
-          v-for="(area, idx) in areas"
-          :key="`area-${idx}`"
-          :points="area.points"
-          :fill="area.fillColor"
-          :stroke="area.hasLine ? area.stroke : 'none'"
-          :stroke-width="area.hasLine ? area.strokeWidth : 0"
-          stroke-linejoin="round"
-          stroke-linecap="round"
-          class="drawing-element"
-        />
+        <template v-for="(item, idx) in renderItems" :key="`${item.type}-${idx}`">
+          <line
+            v-if="item.type === 'lines'"
+            :x1="item.payload.x1"
+            :y1="item.payload.y1"
+            :x2="item.payload.x2"
+            :y2="item.payload.y2"
+            :stroke="item.payload.stroke"
+            :stroke-width="item.payload.strokeWidth"
+            :marker-start="getMarkerId(item.payload.startStyle)"
+            :marker-end="getMarkerId(item.payload.endStyle)"
+            :style="{ color: item.payload.stroke }"
+            class="drawing-element"
+          />
+          <polyline
+            v-else-if="item.type === 'polylines'"
+            :points="item.payload.points"
+            :stroke="item.payload.stroke"
+            :stroke-width="item.payload.strokeWidth"
+            :marker-start="getMarkerId(item.payload.startStyle)"
+            :marker-end="getMarkerId(item.payload.endStyle)"
+            fill="none"
+            stroke-linejoin="round"
+            stroke-linecap="round"
+            :style="{ color: item.payload.stroke }"
+            class="drawing-element"
+          />
+          <polygon
+            v-else-if="item.type === 'areas'"
+            :points="item.payload.points"
+            :fill="item.payload.fillColor"
+            :stroke="item.payload.hasLine ? item.payload.stroke : 'none'"
+            :stroke-width="item.payload.hasLine ? item.payload.strokeWidth : 0"
+            stroke-linejoin="round"
+            stroke-linecap="round"
+            class="drawing-element"
+          />
+        </template>
         <!-- Preview line during draw -->
         <line
           v-if="isDrawing && previewLine"
@@ -254,6 +253,9 @@ const redoStack = ref([])
 const SESSION_STORAGE_KEY = 'pecs_editor_state'
 
 const activePalette = computed(() => propertiesPalette.value[tool.value])
+const renderItems = computed(() =>
+  commandHistory.value.map((command) => ({ type: command.type, payload: command.payload }))
+)
 const canUndo = computed(() => commandHistory.value.length > 0)
 const canRedo = computed(() => redoStack.value.length > 0)
 
@@ -333,21 +335,21 @@ watch(
 const svgCode = computed(() => {
   let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">\n${SVG_MARKER_DEFS}`
 
-  lines.value.forEach((line) => {
-    const markerStart = getMarkerId(line.startStyle)
-    const markerEnd = getMarkerId(line.endStyle)
-    svg += `  <line x1="${formatSvgNumber(line.x1)}" y1="${formatSvgNumber(line.y1)}" x2="${formatSvgNumber(line.x2)}" y2="${formatSvgNumber(line.y2)}" stroke="${line.stroke}" stroke-width="${line.strokeWidth}" style="color: ${line.stroke};"${markerStart ? ` marker-start=\"${markerStart}\"` : ''}${markerEnd ? ` marker-end=\"${markerEnd}\"` : ''}/>\n`
-  })
-
-  polylines.value.forEach((polyline) => {
-    const markerStart = getMarkerId(polyline.startStyle)
-    const markerEnd = getMarkerId(polyline.endStyle)
-    svg += `  <polyline points="${polyline.points}" stroke="${polyline.stroke}" stroke-width="${polyline.strokeWidth}" fill="none" stroke-linejoin="round" stroke-linecap="round" style="color: ${polyline.stroke};"${markerStart ? ` marker-start=\"${markerStart}\"` : ''}${markerEnd ? ` marker-end=\"${markerEnd}\"` : ''}/>\n`
-  })
-
-  areas.value.forEach((area) => {
-    svg += `  <polygon points="${area.points}" fill="${area.fillColor}" stroke="${area.hasLine ? area.stroke : 'none'}" stroke-width="${area.hasLine ? area.strokeWidth : 0}" stroke-linejoin="round" stroke-linecap="round" />
+  renderItems.value.forEach((item) => {
+    if (item.type === 'lines') {
+      const markerStart = getMarkerId(item.payload.startStyle)
+      const markerEnd = getMarkerId(item.payload.endStyle)
+      svg += `  <line x1="${formatSvgNumber(item.payload.x1)}" y1="${formatSvgNumber(item.payload.y1)}" x2="${formatSvgNumber(item.payload.x2)}" y2="${formatSvgNumber(item.payload.y2)}" stroke="${item.payload.stroke}" stroke-width="${item.payload.strokeWidth}" style="color: ${item.payload.stroke};"${markerStart ? ` marker-start="${markerStart}"` : ''}${markerEnd ? ` marker-end="${markerEnd}"` : ''}/>
 `
+    } else if (item.type === 'polylines') {
+      const markerStart = getMarkerId(item.payload.startStyle)
+      const markerEnd = getMarkerId(item.payload.endStyle)
+      svg += `  <polyline points="${item.payload.points}" stroke="${item.payload.stroke}" stroke-width="${item.payload.strokeWidth}" fill="none" stroke-linejoin="round" stroke-linecap="round" style="color: ${item.payload.stroke};"${markerStart ? ` marker-start="${markerStart}"` : ''}${markerEnd ? ` marker-end="${markerEnd}"` : ''}/>
+`
+    } else if (item.type === 'areas') {
+      svg += `  <polygon points="${item.payload.points}" fill="${item.payload.fillColor}" stroke="${item.payload.hasLine ? item.payload.stroke : 'none'}" stroke-width="${item.payload.hasLine ? item.payload.strokeWidth : 0}" stroke-linejoin="round" stroke-linecap="round" />
+`
+    }
   })
 
   svg += '</svg>'

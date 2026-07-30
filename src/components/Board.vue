@@ -7,7 +7,7 @@
           🗑️
         </button>
       </div>
-      <div class="board">
+      <div class="board" ref="boardElement" :style="{ gridTemplateColumns: `repeat(${numColumns}, 1fr)` }">
         <div
           v-for="(slotId, index) in boardSlots"
           :key="index"
@@ -62,16 +62,19 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import PecCard from './PecCard.vue'
 import SearchFilter from './SearchFilter.vue'
 import { loadPecsCards, loadBoardState, saveBoardState } from '../utils/storage'
+import pecsConfig from '../pecs-config.js'
 
-const MAX_SLOTS = 12
+const ROWS = 4 // Number of rows to display
 const allCards = ref([])
-const boardSlots = ref(Array(MAX_SLOTS).fill(null)) // Array of card IDs or null
+const boardSlots = ref([])
+const numColumns = ref(4) // Will be calculated dynamically
 const searchQuery = ref('')
 const dragSourceSlot = ref(null)
+const boardElement = ref(null)
 
 const activeCards = computed(() =>
   allCards.value.filter((card) => card.active !== false)
@@ -96,14 +99,62 @@ const filteredPocketCards = computed(() => {
 onMounted(async () => {
   allCards.value = await loadPecsCards()
   const savedBoardIds = await loadBoardState()
-  // Convert old format (array of IDs) to slot format
-  boardSlots.value = Array(MAX_SLOTS).fill(null)
+  
+  // Wait for DOM to be fully rendered before calculating columns
+  await nextTick()
+  
+  // Calculate columns based on board width
+  calculateColumns()
+  
+  // Initialize slots array based on calculated columns
+  const maxSlots = numColumns.value * ROWS
+  boardSlots.value = Array(maxSlots).fill(null)
+  
+  // Load saved board state
   savedBoardIds.forEach((id, idx) => {
-    if (idx < MAX_SLOTS) {
+    if (idx < boardSlots.value.length) {
       boardSlots.value[idx] = id
     }
   })
+  
+  // Listen for window resize to recalculate columns
+  window.addEventListener('resize', handleWindowResize)
 })
+
+const calculateColumns = () => {
+  if (!boardElement.value) return
+  
+  const boardWidth = boardElement.value.offsetWidth
+  const slotWidthMM = pecsConfig.cardWidthMM
+  
+  // Convert mm to pixels (approximately 3.78px per mm at 96 DPI)
+  const pxPerMM = 3.78
+  const slotWidthPx = slotWidthMM * pxPerMM
+  
+  // Account for gap (16px = 1rem)
+  const gapPx = 16
+  
+  // Calculate how many slots fit
+  const availableWidth = boardWidth - gapPx // Subtract one gap for padding/margin
+  const columns = Math.max(1, Math.floor(availableWidth / (slotWidthPx + gapPx)))
+  
+  if (columns !== numColumns.value) {
+    numColumns.value = columns
+    // Resize slots array if columns changed
+    const maxSlots = columns * ROWS
+    const newSlots = Array(maxSlots).fill(null)
+    boardSlots.value.forEach((cardId, idx) => {
+      if (idx < newSlots.length) {
+        newSlots[idx] = cardId
+      }
+    })
+    boardSlots.value = newSlots
+  }
+}
+
+const handleWindowResize = () => {
+  calculateColumns()
+}
 
 const getCardById = (cardId) => {
   return allCards.value.find((card) => card.id === cardId)
@@ -198,7 +249,7 @@ const removeFromSlot = (slotIndex) => {
 }
 
 const clearBoard = () => {
-  boardSlots.value = Array(MAX_SLOTS).fill(null)
+  boardSlots.value = Array(numColumns.value * ROWS).fill(null)
   saveBoardState([])
 }
 </script>
@@ -257,7 +308,6 @@ const clearBoard = () => {
 .board {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
   gap: 1rem;
   padding: 1rem;
   overflow-y: auto;
@@ -265,7 +315,10 @@ const clearBoard = () => {
 }
 
 .board-slot {
-  min-height: 140px;
+  width: 20mm;
+  height: 25mm;
+  min-height: 0;
+  min-width: 0;
   border: 2px dashed #cbd5e1;
   border-radius: 0.375rem;
   background-color: #f9fafb;
@@ -305,6 +358,7 @@ const clearBoard = () => {
   width: 100%;
   height: 100%;
   cursor: move;
+  display: flex;
 }
 
 .pocket {
@@ -332,10 +386,6 @@ const clearBoard = () => {
   .board-container {
     grid-template-columns: 1fr;
   }
-
-  .board {
-    grid-template-columns: repeat(3, 1fr);
-  }
 }
 
 @media (max-width: 640px) {
@@ -350,7 +400,6 @@ const clearBoard = () => {
   }
 
   .board {
-    grid-template-columns: repeat(2, 1fr);
     gap: 0.5rem;
     padding: 0.75rem;
   }

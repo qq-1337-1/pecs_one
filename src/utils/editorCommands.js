@@ -12,6 +12,18 @@ export class GraphicCommand {
 
     list.push(this.payload)
   }
+
+  undo(targets) {
+    const list = targets[this.type]
+    if (!Array.isArray(list)) {
+      throw new Error(`Invalid graphic target: ${this.type}`)
+    }
+
+    const index = list.lastIndexOf(this.payload)
+    if (index !== -1) {
+      list.splice(index, 1)
+    }
+  }
 }
 
 export const createAddGraphicCommand = ({ tool, payload }) => {

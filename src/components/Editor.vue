@@ -12,11 +12,14 @@
         <button class="btn-tool" :class="{ active: tool === 'area' }" @click="selectTool('area')" title="Draw area">
           ● Area
         </button>
+        <button class="btn-tool" :disabled="!canUndo" @click="undoCommand" title="Undo">
+          ↶
+        </button>
+        <button class="btn-tool" :disabled="!canRedo" @click="redoCommand" title="Redo">
+          ↷
+        </button>
         <button class="btn-tool" @click="clearCanvas" title="Clear canvas">
           🗑 Clear
-        </button>
-        <button class="btn-tool" @click="saveDrawing" title="Save drawing">
-          💾 Save
         </button>
       </div>
     </div>
@@ -246,8 +249,32 @@ const svgCanvas = ref(null)
 const lastClickTime = ref(0)
 const name = ref('')
 const propertiesPalette = ref(JSON.parse(JSON.stringify(DEFAULT_TOOL_PROPERTY_VALUES)))
+const commandHistory = ref([])
+const redoStack = ref([])
 
 const activePalette = computed(() => propertiesPalette.value[tool.value])
+const canUndo = computed(() => commandHistory.value.length > 0)
+const canRedo = computed(() => redoStack.value.length > 0)
+
+const executeCommand = (command) => {
+  command.execute({ lines: lines.value, polylines: polylines.value, areas: areas.value })
+  commandHistory.value.push(command)
+  redoStack.value = []
+}
+
+const undoCommand = () => {
+  if (!canUndo.value) return
+  const command = commandHistory.value.pop()
+  command.undo({ lines: lines.value, polylines: polylines.value, areas: areas.value })
+  redoStack.value.push(command)
+}
+
+const redoCommand = () => {
+  if (!canRedo.value) return
+  const command = redoStack.value.pop()
+  command.execute({ lines: lines.value, polylines: polylines.value, areas: areas.value })
+  commandHistory.value.push(command)
+}
 
 const svgCode = computed(() => {
   let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">\n${SVG_MARKER_DEFS}`
@@ -325,7 +352,7 @@ const handleMouseDown = (event) => {
         tool: 'line',
         payload: createLinePayload(previewLine.value)
       })
-      command.execute({ lines: lines.value, polylines: polylines.value, areas: areas.value })
+      executeCommand(command)
       isDrawing.value = false
       previewLine.value = null
     }
@@ -340,7 +367,7 @@ const handleMouseDown = (event) => {
           ? createAreaPayload(currentShapePoints.value)
           : createPolylinePayload(currentShapePoints.value)
       const command = createAddGraphicCommand({ tool: tool.value, payload })
-      command.execute({ lines: lines.value, polylines: polylines.value, areas: areas.value })
+      executeCommand(command)
       currentShapePoints.value = []
       isDrawing.value = false
       previewShape.value = null
@@ -388,6 +415,8 @@ const clearCanvas = () => {
     isDrawing.value = false
     previewLine.value = null
     previewShape.value = null
+    commandHistory.value = []
+    redoStack.value = []
   }
 }
 

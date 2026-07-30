@@ -7,7 +7,7 @@
           🗑️
         </button>
       </div>
-      <div class="board" ref="boardElement" :style="{ gridTemplateColumns: `repeat(${numColumns}, 1fr)` }">
+      <div class="board" ref="boardElement" :style="{ ...boardStyles, gridTemplateColumns: `repeat(${numColumns}, 1fr)` }">
         <div
           v-for="(slotId, index) in boardSlots"
           :key="index"
@@ -155,6 +155,11 @@ const calculateColumns = () => {
 const handleWindowResize = () => {
   calculateColumns()
 }
+
+const boardStyles = computed(() => ({
+  '--card-width': `${pecsConfig.cardWidthMM}mm`,
+  '--card-height': `${pecsConfig.cardHeightMM}mm`
+}))
 
 const getCardById = (cardId) => {
   return allCards.value.find((card) => card.id === cardId)
@@ -315,8 +320,8 @@ const clearBoard = () => {
 }
 
 .board-slot {
-  width: 20mm;
-  height: 25mm;
+  width: var(--card-width);
+  height: var(--card-height);
   min-height: 0;
   min-width: 0;
   border: 2px dashed #cbd5e1;

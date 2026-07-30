@@ -216,7 +216,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { addPecsCard } from '../utils/storage'
 import { generateGUID } from '../utils/guid'
 import {
@@ -235,7 +235,7 @@ import {
   pointsToPolylineString
 } from '../utils/editorConfig'
 import { getSvgMousePos, isLeftMouseButton, isRapidClick } from '../utils/editorInteraction'
-import { createAddGraphicCommand, buildLineElement, buildPolylineElement, buildAreaElement } from '../utils/editorCommands'
+import { createAddGraphicCommand, buildLineElement, buildPolylineElement, buildAreaElement, GraphicCommand } from '../utils/editorCommands'
 
 const tool = ref('line')
 const isDrawing = ref(false)
@@ -251,6 +251,7 @@ const name = ref('')
 const propertiesPalette = ref(JSON.parse(JSON.stringify(DEFAULT_TOOL_PROPERTY_VALUES)))
 const commandHistory = ref([])
 const redoStack = ref([])
+const SESSION_STORAGE_KEY = 'pecs_editor_state'
 
 const activePalette = computed(() => propertiesPalette.value[tool.value])
 const canUndo = computed(() => commandHistory.value.length > 0)
@@ -275,6 +276,59 @@ const redoCommand = () => {
   command.execute({ lines: lines.value, polylines: polylines.value, areas: areas.value })
   commandHistory.value.push(command)
 }
+
+const persistSessionState = () => {
+  if (typeof sessionStorage === 'undefined') return
+  const sessionData = {
+    tool: tool.value,
+    propertiesPalette: propertiesPalette.value,
+    lines: lines.value,
+    polylines: polylines.value,
+    areas: areas.value,
+    commandHistory: commandHistory.value.map((command) => command.toDescriptor()),
+    redoStack: redoStack.value.map((command) => command.toDescriptor())
+  }
+
+  sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(sessionData))
+}
+
+const loadSessionState = () => {
+  if (typeof sessionStorage === 'undefined') return
+  const stored = sessionStorage.getItem(SESSION_STORAGE_KEY)
+  if (!stored) return
+
+  try {
+    const sessionData = JSON.parse(stored)
+
+    if (sessionData.tool) tool.value = sessionData.tool
+    if (sessionData.propertiesPalette) propertiesPalette.value = sessionData.propertiesPalette
+    lines.value = sessionData.lines || []
+    polylines.value = sessionData.polylines || []
+    areas.value = sessionData.areas || []
+    commandHistory.value = (sessionData.commandHistory || []).map((descriptor) => GraphicCommand.fromDescriptor(descriptor))
+    redoStack.value = (sessionData.redoStack || []).map((descriptor) => GraphicCommand.fromDescriptor(descriptor))
+  } catch (error) {
+    console.warn('Failed to restore editor session state:', error)
+  }
+}
+
+onMounted(() => {
+  loadSessionState()
+})
+
+watch(
+  [
+    () => propertiesPalette.value,
+    () => lines.value,
+    () => polylines.value,
+    () => areas.value,
+    () => commandHistory.value,
+    () => redoStack.value,
+    () => tool.value
+  ],
+  persistSessionState,
+  { deep: true }
+)
 
 const svgCode = computed(() => {
   let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">\n${SVG_MARKER_DEFS}`

@@ -19,10 +19,18 @@ export class GraphicCommand {
       throw new Error(`Invalid graphic target: ${this.type}`)
     }
 
-    const index = list.lastIndexOf(this.payload)
+    const index = list.map((item) => JSON.stringify(item)).lastIndexOf(JSON.stringify(this.payload))
     if (index !== -1) {
       list.splice(index, 1)
     }
+  }
+
+  toDescriptor() {
+    return { type: this.type, payload: this.payload }
+  }
+
+  static fromDescriptor(descriptor) {
+    return new GraphicCommand({ type: descriptor.type, payload: descriptor.payload })
   }
 }
 

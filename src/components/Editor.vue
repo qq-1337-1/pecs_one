@@ -94,37 +94,32 @@
           :y1="previewLine.y1"
           :x2="previewLine.x2"
           :y2="previewLine.y2"
-          :stroke="lineColor"
-          :stroke-width="lineWidth"
-          :marker-start="getMarkerId(startPointStyle)"
-          :marker-end="getMarkerId(endPointStyle)"
-          :style="{ color: lineColor }"
+          stroke="#9ca3af"
+          stroke-width="1"
+          fill="none"
           stroke-dasharray="5,5"
         />
         <!-- Preview polyline during draw -->
         <polyline
           v-if="isDrawing && tool === 'polyline' && previewShape"
           :points="previewShape"
-          :stroke="activePalette.lineColor"
-          :stroke-width="activePalette.lineWidth"
-          :marker-start="getMarkerId(activePalette.startStyle)"
-          :marker-end="getMarkerId(activePalette.endStyle)"
+          stroke="#9ca3af"
+          stroke-width="1"
           fill="none"
           stroke-linejoin="round"
           stroke-linecap="round"
-          :style="{ color: activePalette.lineColor }"
           stroke-dasharray="5,5"
         />
         <polygon
           v-if="isDrawing && tool === 'area' && previewShape"
           :points="previewShape"
-          :fill="activePalette.fillColor"
-          :stroke="activePalette.hasLine ? activePalette.lineColor : 'none'"
-          :stroke-width="activePalette.hasLine ? activePalette.lineWidth : 0"
+          fill="#d1d5db"
+          stroke="#6b7280"
+          stroke-width="1"
           stroke-linejoin="round"
           stroke-linecap="round"
-          fill-opacity="0.35"
-          stroke-dasharray="5,5"
+          fill-opacity="0.25"
+          stroke-dasharray="4,4"
         />
       </svg>
         </div>
@@ -152,7 +147,7 @@
                 </label>
               </template>
 
-              <template v-else>
+                  <template v-else>
                 <label class="input-label" :for="`property-${property.key}`">{{ property.label }}</label>
                 <template v-if="property.type === 'color'">
                   <input
@@ -550,13 +545,22 @@ const savePecs = async () => {
 
 .tool-settings {
   display: grid;
-  gap: 0.75rem;
+  gap: 0.75rem 1rem;
   margin-top: 1rem;
 }
 
 .setting-row {
   display: grid;
-  gap: 0.35rem;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  grid-column: 1 / -1;
 }
 
 .select-input {

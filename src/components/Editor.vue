@@ -9,6 +9,9 @@
         <button class="btn-tool" :class="{ active: tool === 'polyline' }" @click="selectTool('polyline')" title="Draw polyline">
           ∿ Polyline
         </button>
+        <button class="btn-tool" :class="{ active: tool === 'area' }" @click="selectTool('area')" title="Draw area">
+          ● Area
+        </button>
         <button class="btn-tool" @click="clearCanvas" title="Clear canvas">
           🗑 Clear
         </button>
@@ -73,6 +76,17 @@
           :style="{ color: polyline.stroke }"
           class="drawing-element"
         />
+        <polygon
+          v-for="(area, idx) in areas"
+          :key="`area-${idx}`"
+          :points="area.points"
+          :fill="area.fillColor"
+          :stroke="area.hasLine ? area.stroke : 'none'"
+          :stroke-width="area.hasLine ? area.strokeWidth : 0"
+          stroke-linejoin="round"
+          stroke-linecap="round"
+          class="drawing-element"
+        />
         <!-- Preview line during draw -->
         <line
           v-if="isDrawing && previewLine"
@@ -89,16 +103,27 @@
         />
         <!-- Preview polyline during draw -->
         <polyline
-          v-if="isDrawing && previewPolyline"
-          :points="previewPolyline"
-          :stroke="lineColor"
-          :stroke-width="lineWidth"
-          :marker-start="getMarkerId(startPointStyle)"
-          :marker-end="getMarkerId(endPointStyle)"
+          v-if="isDrawing && tool === 'polyline' && previewShape"
+          :points="previewShape"
+          :stroke="activePalette.lineColor"
+          :stroke-width="activePalette.lineWidth"
+          :marker-start="getMarkerId(activePalette.startStyle)"
+          :marker-end="getMarkerId(activePalette.endStyle)"
           fill="none"
           stroke-linejoin="round"
           stroke-linecap="round"
-          :style="{ color: lineColor }"
+          :style="{ color: activePalette.lineColor }"
+          stroke-dasharray="5,5"
+        />
+        <polygon
+          v-if="isDrawing && tool === 'area' && previewShape"
+          :points="previewShape"
+          :fill="activePalette.fillColor"
+          :stroke="activePalette.hasLine ? activePalette.lineColor : 'none'"
+          :stroke-width="activePalette.hasLine ? activePalette.lineWidth : 0"
+          stroke-linejoin="round"
+          stroke-linecap="round"
+          fill-opacity="0.35"
           stroke-dasharray="5,5"
         />
       </svg>
@@ -111,27 +136,47 @@
             {{ TOOL_DESCRIPTIONS[tool] }}
           </p>
           <div class="tool-settings">
-            <div class="setting-row">
-              <label class="input-label" for="line-color">Line color</label>
-              <input id="line-color" type="color" v-model="lineColor" />
-            </div>
-            <div class="setting-row">
-              <label class="input-label" for="line-width">Line width</label>
-              <select id="line-width" v-model.number="lineWidth" class="select-input">
-                <option v-for="size in lineWidthOptions" :key="size" :value="size">{{ size }}</option>
-              </select>
-            </div>
-            <div class="setting-row">
-              <label class="input-label" for="start-style">Start point style</label>
-              <select id="start-style" v-model="startPointStyle" class="select-input">
-                <option v-for="style in pointStyles" :key="style.value" :value="style.value">{{ style.label }}</option>
-              </select>
-            </div>
-            <div class="setting-row">
-              <label class="input-label" for="end-style">End point style</label>
-              <select id="end-style" v-model="endPointStyle" class="select-input">
-                <option v-for="style in pointStyles" :key="style.value" :value="style.value">{{ style.label }}</option>
-              </select>
+            <div
+              class="setting-row"
+              v-for="property in TOOL_PROPERTY_DEFS[tool]"
+              :key="property.key"
+            >
+              <template v-if="property.type === 'checkbox'">
+                <label class="checkbox-label">
+                  <input
+                    type="checkbox"
+                    :id="`property-${property.key}`"
+                    v-model="activePalette[property.key]"
+                  />
+                  {{ property.label }}
+                </label>
+              </template>
+
+              <template v-else>
+                <label class="input-label" :for="`property-${property.key}`">{{ property.label }}</label>
+                <template v-if="property.type === 'color'">
+                  <input
+                    :id="`property-${property.key}`"
+                    type="color"
+                    v-model="activePalette[property.key]"
+                  />
+                </template>
+                <template v-else-if="property.type === 'select'">
+                  <select
+                    :id="`property-${property.key}`"
+                    v-model="activePalette[property.key]"
+                    class="select-input"
+                  >
+                    <option
+                      v-for="option in property.options"
+                      :key="typeof option === 'object' ? option.value : option"
+                      :value="typeof option === 'object' ? option.value : option"
+                    >
+                      {{ typeof option === 'object' ? option.label : option }}
+                    </option>
+                  </select>
+                </template>
+              </template>
             </div>
           </div>
         </div>
@@ -140,7 +185,8 @@
           <h3>Elements</h3>
           <p class="stat">Lines: {{ lines.length }}</p>
           <p class="stat">Polylines: {{ polylines.length }}</p>
-          <p class="stat">Total: {{ lines.length + polylines.length }}</p>
+          <p class="stat">Areas: {{ areas.length }}</p>
+          <p class="stat">Total: {{ lines.length + polylines.length + areas.length }}</p>
         </div>
 
         <div class="sidebar-section">
@@ -183,31 +229,30 @@ import {
   LINE_WIDTH_OPTIONS,
   TOOL_LABELS,
   TOOL_DESCRIPTIONS,
+  TOOL_PROPERTY_DEFS,
+  DEFAULT_TOOL_PROPERTY_VALUES,
   SVG_MARKER_DEFS,
   getMarkerId,
   formatSvgNumber,
   pointsToPolylineString
 } from '../utils/editorConfig'
 import { getSvgMousePos, isLeftMouseButton, isRapidClick } from '../utils/editorInteraction'
-
-const pointStyles = POINT_STYLES
-const lineWidthOptions = LINE_WIDTH_OPTIONS
-import { createAddGraphicCommand, buildLineElement, buildPolylineElement } from '../utils/editorCommands'
+import { createAddGraphicCommand, buildLineElement, buildPolylineElement, buildAreaElement } from '../utils/editorCommands'
 
 const tool = ref('line')
 const isDrawing = ref(false)
 const lines = ref([])
 const polylines = ref([])
-const currentPointsForPolyline = ref([])
+const areas = ref([])
+const currentShapePoints = ref([])
 const previewLine = ref(null)
-const previewPolyline = ref(null)
+const previewShape = ref(null)
 const svgCanvas = ref(null)
 const lastClickTime = ref(0)
 const name = ref('')
-const lineColor = ref(DEFAULT_LINE_COLOR)
-const lineWidth = ref(DEFAULT_LINE_WIDTH)
-const startPointStyle = ref('none')
-const endPointStyle = ref('none')
+const propertiesPalette = ref(JSON.parse(JSON.stringify(DEFAULT_TOOL_PROPERTY_VALUES)))
+
+const activePalette = computed(() => propertiesPalette.value[tool.value])
 
 const svgCode = computed(() => {
   let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">\n${SVG_MARKER_DEFS}`
@@ -224,6 +269,11 @@ const svgCode = computed(() => {
     svg += `  <polyline points="${polyline.points}" stroke="${polyline.stroke}" stroke-width="${polyline.strokeWidth}" fill="none" stroke-linejoin="round" stroke-linecap="round" style="color: ${polyline.stroke};"${markerStart ? ` marker-start=\"${markerStart}\"` : ''}${markerEnd ? ` marker-end=\"${markerEnd}\"` : ''}/>\n`
   })
 
+  areas.value.forEach((area) => {
+    svg += `  <polygon points="${area.points}" fill="${area.fillColor}" stroke="${area.hasLine ? area.stroke : 'none'}" stroke-width="${area.hasLine ? area.strokeWidth : 0}" stroke-linejoin="round" stroke-linecap="round" />
+`
+  })
+
   svg += '</svg>'
   return svg
 })
@@ -231,9 +281,9 @@ const svgCode = computed(() => {
 const selectTool = (selectedTool) => {
   if (isDrawing.value) return
   tool.value = selectedTool
-  currentPointsForPolyline.value = []
+  currentShapePoints.value = []
   previewLine.value = null
-  previewPolyline.value = null
+  previewShape.value = null
 }
 
 const createLinePayload = (preview) =>
@@ -242,19 +292,28 @@ const createLinePayload = (preview) =>
     y1: Number(preview.y1.toFixed(2)),
     x2: Number(preview.x2.toFixed(2)),
     y2: Number(preview.y2.toFixed(2)),
-    stroke: lineColor.value,
-    strokeWidth: lineWidth.value,
-    startStyle: startPointStyle.value,
-    endStyle: endPointStyle.value
+    stroke: activePalette.value.lineColor,
+    strokeWidth: activePalette.value.lineWidth,
+    startStyle: activePalette.value.startStyle,
+    endStyle: activePalette.value.endStyle
   })
 
 const createPolylinePayload = (points) =>
   buildPolylineElement({
     points: pointsToPolylineString(points),
-    stroke: lineColor.value,
-    strokeWidth: lineWidth.value,
-    startStyle: startPointStyle.value,
-    endStyle: endPointStyle.value
+    stroke: activePalette.value.lineColor,
+    strokeWidth: activePalette.value.lineWidth,
+    startStyle: activePalette.value.startStyle,
+    endStyle: activePalette.value.endStyle
+  })
+
+const createAreaPayload = (points) =>
+  buildAreaElement({
+    points: pointsToPolylineString(points),
+    hasLine: activePalette.value.hasLine,
+    stroke: activePalette.value.hasLine ? activePalette.value.lineColor : 'none',
+    strokeWidth: activePalette.value.lineWidth,
+    fillColor: activePalette.value.fillColor
   })
 
 const handleMouseDown = (event) => {
@@ -271,28 +330,29 @@ const handleMouseDown = (event) => {
         tool: 'line',
         payload: createLinePayload(previewLine.value)
       })
-      command.execute({ lines: lines.value, polylines: polylines.value })
+      command.execute({ lines: lines.value, polylines: polylines.value, areas: areas.value })
       isDrawing.value = false
       previewLine.value = null
     }
     return
   }
 
-  if (tool.value === 'polyline') {
+  if (tool.value === 'polyline' || tool.value === 'area') {
     const clicksRapid = isRapidClick(lastClickTime.value)
-    if (clicksRapid && currentPointsForPolyline.value.length > 1) {
-      const command = createAddGraphicCommand({
-        tool: 'polyline',
-        payload: createPolylinePayload(currentPointsForPolyline.value)
-      })
-      command.execute({ lines: lines.value, polylines: polylines.value })
-      currentPointsForPolyline.value = []
+    if (clicksRapid && currentShapePoints.value.length > 1) {
+      const payload =
+        tool.value === 'area'
+          ? createAreaPayload(currentShapePoints.value)
+          : createPolylinePayload(currentShapePoints.value)
+      const command = createAddGraphicCommand({ tool: tool.value, payload })
+      command.execute({ lines: lines.value, polylines: polylines.value, areas: areas.value })
+      currentShapePoints.value = []
       isDrawing.value = false
-      previewPolyline.value = null
+      previewShape.value = null
     } else {
       if (!isDrawing.value) isDrawing.value = true
-      currentPointsForPolyline.value.push(pos)
-      updatePolylinePreview()
+      currentShapePoints.value.push(pos)
+      updateShapePreview()
     }
     lastClickTime.value = Date.now()
   }
@@ -307,9 +367,9 @@ const handleMouseMove = (event) => {
     return
   }
 
-  if (tool.value === 'polyline' && currentPointsForPolyline.value.length > 0) {
-    const previewPoints = [...currentPointsForPolyline.value, pos]
-    previewPolyline.value = pointsToPolylineString(previewPoints)
+  if ((tool.value === 'polyline' || tool.value === 'area') && currentShapePoints.value.length > 0) {
+    const previewPoints = [...currentShapePoints.value, pos]
+    previewShape.value = pointsToPolylineString(previewPoints)
   }
 }
 
@@ -317,21 +377,22 @@ const handleMouseUp = () => {
   // No mouse-up behavior needed for current editor interactions.
 }
 
-const updatePolylinePreview = () => {
-  previewPolyline.value =
-    currentPointsForPolyline.value.length === 0
+const updateShapePreview = () => {
+  previewShape.value =
+    currentShapePoints.value.length === 0
       ? null
-      : pointsToPolylineString(currentPointsForPolyline.value)
+      : pointsToPolylineString(currentShapePoints.value)
 }
 
 const clearCanvas = () => {
   if (confirm('Clear all drawings?')) {
     lines.value = []
     polylines.value = []
-    currentPointsForPolyline.value = []
+    areas.value = []
+    currentShapePoints.value = []
     isDrawing.value = false
     previewLine.value = null
-    previewPolyline.value = null
+    previewShape.value = null
   }
 }
 
@@ -339,6 +400,7 @@ const saveDrawing = () => {
   const drawing = {
     lines: lines.value,
     polylines: polylines.value,
+    areas: areas.value,
     timestamp: new Date().toISOString()
   }
   localStorage.setItem('pecs_drawing', JSON.stringify(drawing))

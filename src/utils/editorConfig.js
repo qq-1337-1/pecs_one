@@ -33,3 +33,47 @@ export const formatSvgNumber = (value) => Number(value).toFixed(2)
 
 export const pointsToPolylineString = (points) =>
   points.map((point) => `${formatSvgNumber(point.x)},${formatSvgNumber(point.y)}`).join(' ')
+
+export const DEFAULT_FILL_COLOR = '#a5b4fc'
+
+export const TOOL_PROPERTY_DEFS = {
+  line: [
+    { key: 'lineColor', label: 'Line color', type: 'color' },
+    { key: 'lineWidth', label: 'Line width', type: 'select', options: LINE_WIDTH_OPTIONS },
+    { key: 'startStyle', label: 'Start point style', type: 'select', options: POINT_STYLES },
+    { key: 'endStyle', label: 'End point style', type: 'select', options: POINT_STYLES }
+  ],
+  polyline: [
+    { key: 'lineColor', label: 'Line color', type: 'color' },
+    { key: 'lineWidth', label: 'Line width', type: 'select', options: LINE_WIDTH_OPTIONS },
+    { key: 'startStyle', label: 'Start point style', type: 'select', options: POINT_STYLES },
+    { key: 'endStyle', label: 'End point style', type: 'select', options: POINT_STYLES }
+  ],
+  area: [
+    { key: 'hasLine', label: 'Has line', type: 'checkbox' },
+    { key: 'lineColor', label: 'Line color', type: 'color' },
+    { key: 'lineWidth', label: 'Line width', type: 'select', options: LINE_WIDTH_OPTIONS },
+    { key: 'fillColor', label: 'Fill color', type: 'color' }
+  ]
+}
+
+export const DEFAULT_TOOL_PROPERTY_VALUES = {
+  line: {
+    lineColor: DEFAULT_LINE_COLOR,
+    lineWidth: DEFAULT_LINE_WIDTH,
+    startStyle: 'none',
+    endStyle: 'none'
+  },
+  polyline: {
+    lineColor: DEFAULT_LINE_COLOR,
+    lineWidth: DEFAULT_LINE_WIDTH,
+    startStyle: 'none',
+    endStyle: 'none'
+  },
+  area: {
+    hasLine: true,
+    lineColor: DEFAULT_LINE_COLOR,
+    lineWidth: DEFAULT_LINE_WIDTH,
+    fillColor: DEFAULT_FILL_COLOR
+  }
+}

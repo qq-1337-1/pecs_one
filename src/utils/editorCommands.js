@@ -23,6 +23,10 @@ export const createAddGraphicCommand = ({ tool, payload }) => {
     return new GraphicCommand({ type: 'polylines', payload })
   }
 
+  if (tool === 'area') {
+    return new GraphicCommand({ type: 'areas', payload })
+  }
+
   throw new Error(`Unsupported tool: ${tool}`)
 }
 
@@ -43,4 +47,12 @@ export const buildPolylineElement = ({ points, stroke, strokeWidth, startStyle, 
   strokeWidth,
   startStyle,
   endStyle
+})
+
+export const buildAreaElement = ({ points, hasLine, stroke, strokeWidth, fillColor }) => ({
+  points,
+  hasLine,
+  stroke,
+  strokeWidth,
+  fillColor
 })

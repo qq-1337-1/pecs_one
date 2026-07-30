@@ -1,5 +1,5 @@
 <template>
-  <div class="pec-card">
+  <div class="pec-card" :style="cardStyle">
     <div class="card-image-container">
       <svg
         v-if="isSvgContent"
@@ -31,6 +31,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import pecsConfig from '../pecs-config.js'
 
 const props = defineProps({
   card: {
@@ -55,6 +56,31 @@ const emit = defineEmits(['remove', 'append'])
 
 const isSvgContent = computed(() => {
   return typeof props.card.svg === 'object' && props.card.svg.content
+})
+
+const cardStyle = computed(() => {
+  const cfgW = pecsConfig.cardWidthMM
+  const cfgH = pecsConfig.cardHeightMM
+
+  let widthMM = cfgW
+  let heightMM = cfgH
+
+  const dims = props.card.dimensions
+  if (dims) {
+    // Accept string 'default' or object with { default: true }
+    if (dims === 'default' || (typeof dims === 'object' && dims.default)) {
+      widthMM = cfgW
+      heightMM = cfgH
+    } else if (typeof dims === 'object' && dims.width && dims.height) {
+      widthMM = dims.width
+      heightMM = dims.height
+    }
+  }
+
+  return {
+    width: `${widthMM}mm`,
+    height: `${heightMM}mm`
+  }
 })
 
 const handleRemove = () => {

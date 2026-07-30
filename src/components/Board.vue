@@ -7,18 +7,33 @@
           🗑️
         </button>
       </div>
-      <div class="board" @drop="handleDrop" @dragover="handleDragOver">
+      <div class="board">
         <div
-          v-for="card in boardCards"
-          :key="card.id"
-          class="board-card"
-          :draggable="true"
-          @dragstart="handleDragStart($event, card, 'board')"
+          v-for="(slotId, index) in boardSlots"
+          :key="index"
+          class="board-slot"
+          :class="{ 'slot-occupied': slotId }"
+          @drop="handleSlotDrop($event, index)"
+          @dragover="handleSlotDragOver($event, index)"
+          @dragleave="handleSlotDragLeave($event, index)"
         >
-          <PecCard :card="card" :draggable="true" :showRemove="true" @remove="removeFromBoard(card.id)" />
-        </div>
-        <div v-if="boardCards.length === 0" class="empty-state">
-          Drag cards here to arrange them
+          <div
+            v-if="slotId"
+            class="board-card"
+            :draggable="true"
+            @dragstart="handleCardDragStart($event, getCardById(slotId), index)"
+            @dragend="handleCardDragEnd"
+          >
+            <PecCard
+              :card="getCardById(slotId)"
+              :draggable="true"
+              :showRemove="true"
+              @remove="removeFromSlot(index)"
+            />
+          </div>
+          <div v-else class="slot-placeholder">
+            {{ index + 1 }}
+          </div>
         </div>
       </div>
     </div>
@@ -28,12 +43,13 @@
         <h2>Pocket (Available Cards)</h2>
       </div>
       <SearchFilter v-model="searchQuery" />
-      <div class="pocket" @drop="handlePocketDrop" @dragover="handleDragOver">
+      <div class="pocket" @drop="handlePocketDrop" @dragover="handleSlotDragOver">
         <div
           v-for="card in filteredPocketCards"
           :key="card.id"
           :draggable="true"
-          @dragstart="handleDragStart($event, card, 'pocket')"
+          @dragstart="handleCardDragStart($event, card, -1)"
+          @dragend="handleCardDragEnd"
         >
           <PecCard :card="card" :draggable="true" :showRemove="false" :showAppend="true" @append="appendToBoard(card.id)" />
         </div>
@@ -51,23 +67,22 @@ import PecCard from './PecCard.vue'
 import SearchFilter from './SearchFilter.vue'
 import { loadPecsCards, loadBoardState, saveBoardState } from '../utils/storage'
 
+const MAX_SLOTS = 12
 const allCards = ref([])
-const boardIds = ref([])
+const boardSlots = ref(Array(MAX_SLOTS).fill(null)) // Array of card IDs or null
 const searchQuery = ref('')
+const dragSourceSlot = ref(null)
 
 const activeCards = computed(() =>
   allCards.value.filter((card) => card.active !== false)
 )
 
-const boardCards = computed(() =>
-  // Preserve explicit board ordering stored in `boardIds`
-  boardIds.value
-    .map((id) => activeCards.value.find((card) => card.id === id))
-    .filter(Boolean)
+const boardCardIds = computed(() =>
+  boardSlots.value.filter(Boolean)
 )
 
 const pocketCards = computed(() =>
-  activeCards.value.filter((card) => !boardIds.value.includes(card.id))
+  activeCards.value.filter((card) => !boardCardIds.value.includes(card.id))
 )
 
 const filteredPocketCards = computed(() => {
@@ -80,33 +95,66 @@ const filteredPocketCards = computed(() => {
 
 onMounted(async () => {
   allCards.value = await loadPecsCards()
-  boardIds.value = await loadBoardState()
+  const savedBoardIds = await loadBoardState()
+  // Convert old format (array of IDs) to slot format
+  boardSlots.value = Array(MAX_SLOTS).fill(null)
+  savedBoardIds.forEach((id, idx) => {
+    if (idx < MAX_SLOTS) {
+      boardSlots.value[idx] = id
+    }
+  })
 })
 
-const handleDragStart = (event, card, source) => {
-  event.dataTransfer.effectAllowed = 'copy'
-  event.dataTransfer.setData('card', JSON.stringify(card))
-  event.dataTransfer.setData('source', source)
+const getCardById = (cardId) => {
+  return allCards.value.find((card) => card.id === cardId)
 }
 
-const handleDragOver = (event) => {
+const handleCardDragStart = (event, card, slotIndex) => {
+  dragSourceSlot.value = slotIndex
+  event.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer.setData('card', JSON.stringify(card))
+  event.dataTransfer.setData('source', slotIndex === -1 ? 'pocket' : 'board')
+}
+
+const handleCardDragEnd = () => {
+  dragSourceSlot.value = null
+}
+
+const handleSlotDragOver = (event, slotIndex) => {
   event.preventDefault()
-  event.dataTransfer.dropEffect = 'copy'
+  event.dataTransfer.dropEffect = 'move'
   event.currentTarget.classList.add('drag-over')
 }
 
-const handleDrop = (event) => {
+const handleSlotDragLeave = (event, slotIndex) => {
+  event.currentTarget.classList.remove('drag-over')
+}
+
+const handleSlotDrop = (event, slotIndex) => {
   event.preventDefault()
   event.currentTarget.classList.remove('drag-over')
 
   try {
     const cardData = event.dataTransfer.getData('card')
+    const source = event.dataTransfer.getData('source')
     const card = JSON.parse(cardData)
 
-    if (!boardIds.value.includes(card.id)) {
-      // append to end so last dropped is last visible
-      boardIds.value.push(card.id)
-      saveBoardState(boardIds.value)
+    if (source === 'board') {
+      // Moving card from one slot to another
+      if (dragSourceSlot.value !== null && dragSourceSlot.value !== slotIndex) {
+        // Only swap/move if target slot is empty
+        if (!boardSlots.value[slotIndex]) {
+          boardSlots.value[slotIndex] = card.id
+          boardSlots.value[dragSourceSlot.value] = null
+          saveBoardState(boardCardIds.value)
+        }
+      }
+    } else {
+      // Dropping card from pocket
+      if (!boardSlots.value[slotIndex]) {
+        boardSlots.value[slotIndex] = card.id
+        saveBoardState(boardCardIds.value)
+      }
     }
   } catch (error) {
     console.error('Drop failed:', error)
@@ -114,9 +162,11 @@ const handleDrop = (event) => {
 }
 
 const appendToBoard = (cardId) => {
-  if (!boardIds.value.includes(cardId)) {
-    boardIds.value.push(cardId)
-    saveBoardState(boardIds.value)
+  // Find first empty slot and append card there
+  const emptySlot = boardSlots.value.findIndex((slot) => slot === null)
+  if (emptySlot !== -1) {
+    boardSlots.value[emptySlot] = cardId
+    saveBoardState(boardCardIds.value)
   }
 }
 
@@ -130,23 +180,26 @@ const handlePocketDrop = (event) => {
     const card = JSON.parse(cardData)
 
     // Only remove from board if card was dragged from board
-    if (source === 'board' && boardIds.value.includes(card.id)) {
-      boardIds.value = boardIds.value.filter((id) => id !== card.id)
-      saveBoardState(boardIds.value)
+    if (source === 'board' && boardCardIds.value.includes(card.id)) {
+      const slotIndex = boardSlots.value.indexOf(card.id)
+      if (slotIndex !== -1) {
+        boardSlots.value[slotIndex] = null
+        saveBoardState(boardCardIds.value)
+      }
     }
   } catch (error) {
     console.error('Drop failed:', error)
   }
 }
 
-const removeFromBoard = (cardId) => {
-  boardIds.value = boardIds.value.filter((id) => id !== cardId)
-  saveBoardState(boardIds.value)
+const removeFromSlot = (slotIndex) => {
+  boardSlots.value[slotIndex] = null
+  saveBoardState(boardCardIds.value)
 }
 
 const clearBoard = () => {
-  boardIds.value = []
-  saveBoardState(boardIds.value)
+  boardSlots.value = Array(MAX_SLOTS).fill(null)
+  saveBoardState([])
 }
 </script>
 
@@ -204,31 +257,53 @@ const clearBoard = () => {
 .board {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 1rem;
   padding: 1rem;
   overflow-y: auto;
   background-color: #fafbfc;
-  background-image: repeating-linear-gradient(
-    180deg,
-    transparent,
-    transparent calc(33.33% - 1px),
-    #cbd5e1 calc(33.33% - 1px),
-    #cbd5e1 33.33%,
-    transparent 33.33%
-  );
-  background-size: 100% 100%;
-  border: 2px dashed #cbd5e1;
-  border-radius: 0.375rem;
-  min-height: 200px;
 }
 
-.board.drag-over {
-  background-color: #e0e7ff;
+.board-slot {
+  min-height: 140px;
+  border: 2px dashed #cbd5e1;
+  border-radius: 0.375rem;
+  background-color: #f9fafb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  cursor: drop;
+  transition: all 0.2s;
+}
+
+.board-slot:hover {
+  border-color: #a1aac4;
+  background-color: #f3f4f6;
+}
+
+.board-slot.drag-over {
   border-color: #6366f1;
+  background-color: #e0e7ff;
+  box-shadow: inset 0 0 0 2px rgba(99, 102, 241, 0.1);
+}
+
+.board-slot.slot-occupied {
+  border: none;
+  background-color: transparent;
+  overflow: hidden;
+}
+
+.slot-placeholder {
+  font-size: 0.85rem;
+  color: #d1d5db;
+  font-weight: 500;
+  user-select: none;
 }
 
 .board-card {
+  width: 100%;
+  height: 100%;
   cursor: move;
 }
 
@@ -239,6 +314,10 @@ const clearBoard = () => {
   gap: 0.75rem;
   padding: 1rem;
   overflow-y: auto;
+}
+
+.pocket .drag-over {
+  background-color: #e0e7ff;
 }
 
 .empty-state {
@@ -252,6 +331,10 @@ const clearBoard = () => {
 @media (max-width: 1024px) {
   .board-container {
     grid-template-columns: 1fr;
+  }
+
+  .board {
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
@@ -267,6 +350,7 @@ const clearBoard = () => {
   }
 
   .board {
+    grid-template-columns: repeat(2, 1fr);
     gap: 0.5rem;
     padding: 0.75rem;
   }

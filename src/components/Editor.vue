@@ -189,6 +189,9 @@ import {
   pointsToPolylineString
 } from '../utils/editorConfig'
 import { getSvgMousePos, isLeftMouseButton, isRapidClick } from '../utils/editorInteraction'
+
+const pointStyles = POINT_STYLES
+const lineWidthOptions = LINE_WIDTH_OPTIONS
 import { createAddGraphicCommand, buildLineElement, buildPolylineElement } from '../utils/editorCommands'
 
 const tool = ref('line')

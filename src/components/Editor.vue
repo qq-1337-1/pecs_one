@@ -106,9 +106,9 @@
 
       <div class="editor-sidebar">
         <div class="sidebar-section">
-          <h3>Tool: {{ tool === 'line' ? 'Line' : 'Polyline' }}</h3>
+          <h3>Tool: {{ TOOL_LABELS[tool] }}</h3>
           <p class="tool-description">
-            {{ tool === 'line' ? 'Click twice to draw a line' : 'Click multiple times to draw, double-click to finish' }}
+            {{ TOOL_DESCRIPTIONS[tool] }}
           </p>
           <div class="tool-settings">
             <div class="setting-row">
@@ -175,6 +175,21 @@
 import { ref, computed } from 'vue'
 import { addPecsCard } from '../utils/storage'
 import { generateGUID } from '../utils/guid'
+import {
+  VIEWBOX,
+  DEFAULT_LINE_COLOR,
+  DEFAULT_LINE_WIDTH,
+  POINT_STYLES,
+  LINE_WIDTH_OPTIONS,
+  TOOL_LABELS,
+  TOOL_DESCRIPTIONS,
+  SVG_MARKER_DEFS,
+  getMarkerId,
+  formatSvgNumber,
+  pointsToPolylineString
+} from '../utils/editorConfig'
+import { getSvgMousePos, isLeftMouseButton, isRapidClick } from '../utils/editorInteraction'
+import { createAddGraphicCommand, buildLineElement, buildPolylineElement } from '../utils/editorCommands'
 
 const tool = ref('line')
 const isDrawing = ref(false)
@@ -186,38 +201,18 @@ const previewPolyline = ref(null)
 const svgCanvas = ref(null)
 const lastClickTime = ref(0)
 const name = ref('')
-const lineColor = ref('#6366f1')
-const lineWidth = ref(2)
+const lineColor = ref(DEFAULT_LINE_COLOR)
+const lineWidth = ref(DEFAULT_LINE_WIDTH)
 const startPointStyle = ref('none')
 const endPointStyle = ref('none')
 
-const pointStyles = [
-  { value: 'none', label: 'None' },
-  { value: 'dot', label: 'Dot' },
-  { value: 'arrow', label: 'Arrow' }
-]
-
-const lineWidthOptions = [1, 2, 3, 4, 5, 6, 8, 10]
-
-const getMarkerId = (style) => {
-  if (style === 'arrow') return 'url(#marker-arrow)'
-  if (style === 'dot') return 'url(#marker-dot)'
-  return null
-}
-
-// Use the same internal coordinate system as PECS cards
-const VIEWBOX = { x: 0, y: 0, width: 100, height: 100 }
-
 const svgCode = computed(() => {
-  const fmt = (n) => Number(n).toFixed(2)
-  const markerDefs = `  <defs>\n    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">\n      <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e5e7eb" stroke-width="0.5"/>\n    </pattern>\n    <marker id="marker-dot" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto" markerUnits="strokeWidth">\n      <circle cx="3" cy="3" r="2" fill="currentColor"/>\n    </marker>\n    <marker id="marker-arrow" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">\n      <path d="M0,0 L6,3 L0,6 Z" fill="currentColor"/>\n    </marker>\n  </defs>\n`
-
-  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">\n${markerDefs}`
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">\n${SVG_MARKER_DEFS}`
 
   lines.value.forEach((line) => {
     const markerStart = getMarkerId(line.startStyle)
     const markerEnd = getMarkerId(line.endStyle)
-    svg += `  <line x1="${fmt(line.x1)}" y1="${fmt(line.y1)}" x2="${fmt(line.x2)}" y2="${fmt(line.y2)}" stroke="${line.stroke}" stroke-width="${line.strokeWidth}" style="color: ${line.stroke};"${markerStart ? ` marker-start=\"${markerStart}\"` : ''}${markerEnd ? ` marker-end=\"${markerEnd}\"` : ''}/>\n`
+    svg += `  <line x1="${formatSvgNumber(line.x1)}" y1="${formatSvgNumber(line.y1)}" x2="${formatSvgNumber(line.x2)}" y2="${formatSvgNumber(line.y2)}" stroke="${line.stroke}" stroke-width="${line.strokeWidth}" style="color: ${line.stroke};"${markerStart ? ` marker-start=\"${markerStart}\"` : ''}${markerEnd ? ` marker-end=\"${markerEnd}\"` : ''}/>\n`
   })
 
   polylines.value.forEach((polyline) => {
@@ -238,95 +233,92 @@ const selectTool = (selectedTool) => {
   previewPolyline.value = null
 }
 
-const getMousePos = (event) => {
-  const rect = svgCanvas.value.getBoundingClientRect()
-  const px = event.clientX - rect.left
-  const py = event.clientY - rect.top
-  // map pixel coordinates to viewBox coordinates (0..100)
-  const x = (px / rect.width) * VIEWBOX.width + VIEWBOX.x
-  const y = (py / rect.height) * VIEWBOX.height + VIEWBOX.y
-  return { x, y }
-}
+const createLinePayload = (preview) =>
+  buildLineElement({
+    x1: Number(preview.x1.toFixed(2)),
+    y1: Number(preview.y1.toFixed(2)),
+    x2: Number(preview.x2.toFixed(2)),
+    y2: Number(preview.y2.toFixed(2)),
+    stroke: lineColor.value,
+    strokeWidth: lineWidth.value,
+    startStyle: startPointStyle.value,
+    endStyle: endPointStyle.value
+  })
+
+const createPolylinePayload = (points) =>
+  buildPolylineElement({
+    points: pointsToPolylineString(points),
+    stroke: lineColor.value,
+    strokeWidth: lineWidth.value,
+    startStyle: startPointStyle.value,
+    endStyle: endPointStyle.value
+  })
 
 const handleMouseDown = (event) => {
-  if (event.button !== 0) return // Only left click
+  if (!isLeftMouseButton(event)) return
 
-  const pos = getMousePos(event)
+  const pos = getSvgMousePos(event, svgCanvas.value, VIEWBOX)
 
   if (tool.value === 'line') {
     if (!isDrawing.value) {
       isDrawing.value = true
       previewLine.value = { x1: pos.x, y1: pos.y, x2: pos.x, y2: pos.y }
-    } else {
-      // Second click - complete the line
-      // store numbers rounded to two decimals
-      lines.value.push({
-        x1: Number(previewLine.value.x1.toFixed(2)),
-        y1: Number(previewLine.value.y1.toFixed(2)),
-        x2: Number(previewLine.value.x2.toFixed(2)),
-        y2: Number(previewLine.value.y2.toFixed(2)),
-        stroke: lineColor.value,
-        strokeWidth: lineWidth.value,
-        startStyle: startPointStyle.value,
-        endStyle: endPointStyle.value
+    } else if (previewLine.value) {
+      const command = createAddGraphicCommand({
+        tool: 'line',
+        payload: createLinePayload(previewLine.value)
       })
+      command.execute({ lines: lines.value, polylines: polylines.value })
       isDrawing.value = false
       previewLine.value = null
     }
-  } else if (tool.value === 'polyline') {
-    const now = Date.now()
-    const isDoubleClick = now - lastClickTime.value < 300
+    return
+  }
 
-    if (isDoubleClick && currentPointsForPolyline.value.length > 1) {
-      // Complete polyline
-      const points = currentPointsForPolyline.value.map((p) => `${Number(p.x.toFixed(2))},${Number(p.y.toFixed(2))}`).join(' ')
-      polylines.value.push({
-        points,
-        stroke: lineColor.value,
-        strokeWidth: lineWidth.value,
-        startStyle: startPointStyle.value,
-        endStyle: endPointStyle.value
+  if (tool.value === 'polyline') {
+    const clicksRapid = isRapidClick(lastClickTime.value)
+    if (clicksRapid && currentPointsForPolyline.value.length > 1) {
+      const command = createAddGraphicCommand({
+        tool: 'polyline',
+        payload: createPolylinePayload(currentPointsForPolyline.value)
       })
+      command.execute({ lines: lines.value, polylines: polylines.value })
       currentPointsForPolyline.value = []
       isDrawing.value = false
       previewPolyline.value = null
     } else {
-      // Add point
       if (!isDrawing.value) isDrawing.value = true
       currentPointsForPolyline.value.push(pos)
       updatePolylinePreview()
     }
-
-    lastClickTime.value = now
+    lastClickTime.value = Date.now()
   }
 }
 
 const handleMouseMove = (event) => {
-  const pos = getMousePos(event)
+  const pos = getSvgMousePos(event, svgCanvas.value, VIEWBOX)
 
   if (tool.value === 'line' && isDrawing.value && previewLine.value) {
     previewLine.value.x2 = pos.x
     previewLine.value.y2 = pos.y
-  } else if (tool.value === 'polyline' && currentPointsForPolyline.value.length > 0) {
-    const points = [
-      ...currentPointsForPolyline.value.map((p) => `${Number(p.x.toFixed(2))},${Number(p.y.toFixed(2))}`),
-      `${Number(pos.x.toFixed(2))},${Number(pos.y.toFixed(2))}`
-    ].join(' ')
-    previewPolyline.value = points
+    return
+  }
+
+  if (tool.value === 'polyline' && currentPointsForPolyline.value.length > 0) {
+    const previewPoints = [...currentPointsForPolyline.value, pos]
+    previewPolyline.value = pointsToPolylineString(previewPoints)
   }
 }
 
 const handleMouseUp = () => {
-  // Nothing needed for line as click handles it
-  // Polyline uses double-click, handled in handleMouseDown
+  // No mouse-up behavior needed for current editor interactions.
 }
 
 const updatePolylinePreview = () => {
-  if (currentPointsForPolyline.value.length === 0) {
-    previewPolyline.value = null
-  } else {
-    previewPolyline.value = currentPointsForPolyline.value.map((p) => `${Number(p.x.toFixed(2))},${Number(p.y.toFixed(2))}`).join(' ')
-  }
+  previewPolyline.value =
+    currentPointsForPolyline.value.length === 0
+      ? null
+      : pointsToPolylineString(currentPointsForPolyline.value)
 }
 
 const clearCanvas = () => {

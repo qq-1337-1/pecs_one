@@ -19,14 +19,17 @@
     </div>
 
     <div class="editor-main">
-      <svg
-        ref="svgCanvas"
-        class="svg-canvas"
-        @mousedown="handleMouseDown"
-        @mousemove="handleMouseMove"
-        @mouseup="handleMouseUp"
-        @mouseleave="handleMouseUp"
-      >
+        <div class="svg-wrapper">
+          <svg
+            ref="svgCanvas"
+            class="svg-canvas"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="xMidYMid meet"
+            @mousedown="handleMouseDown"
+            @mousemove="handleMouseMove"
+            @mouseup="handleMouseUp"
+            @mouseleave="handleMouseUp"
+          >
         <!-- Grid background -->
         <defs>
           <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
@@ -81,6 +84,7 @@
           stroke-dasharray="5,5"
         />
       </svg>
+        </div>
 
       <div class="editor-sidebar">
         <div class="sidebar-section">
@@ -141,11 +145,15 @@ const svgCanvas = ref(null)
 const lastClickTime = ref(0)
 const name = ref('')
 
+// Use the same internal coordinate system as PECS cards
+const VIEWBOX = { x: 0, y: 0, width: 100, height: 100 }
+
 const svgCode = computed(() => {
-  let svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">\n'
+  const fmt = (n) => Number(n).toFixed(2)
+  let svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">\n'
 
   lines.value.forEach((line) => {
-    svg += `  <line x1="${line.x1}" y1="${line.y1}" x2="${line.x2}" y2="${line.y2}" stroke="#6366f1" stroke-width="2"/>\n`
+    svg += `  <line x1="${fmt(line.x1)}" y1="${fmt(line.y1)}" x2="${fmt(line.x2)}" y2="${fmt(line.y2)}" stroke="#6366f1" stroke-width="2"/>\n`
   })
 
   polylines.value.forEach((polyline) => {
@@ -166,10 +174,12 @@ const selectTool = (selectedTool) => {
 
 const getMousePos = (event) => {
   const rect = svgCanvas.value.getBoundingClientRect()
-  return {
-    x: event.clientX - rect.left,
-    y: event.clientY - rect.top
-  }
+  const px = event.clientX - rect.left
+  const py = event.clientY - rect.top
+  // map pixel coordinates to viewBox coordinates (0..100)
+  const x = (px / rect.width) * VIEWBOX.width + VIEWBOX.x
+  const y = (py / rect.height) * VIEWBOX.height + VIEWBOX.y
+  return { x, y }
 }
 
 const handleMouseDown = (event) => {
@@ -183,7 +193,13 @@ const handleMouseDown = (event) => {
       previewLine.value = { x1: pos.x, y1: pos.y, x2: pos.x, y2: pos.y }
     } else {
       // Second click - complete the line
-      lines.value.push(previewLine.value)
+      // store numbers rounded to two decimals
+      lines.value.push({
+        x1: Number(previewLine.value.x1.toFixed(2)),
+        y1: Number(previewLine.value.y1.toFixed(2)),
+        x2: Number(previewLine.value.x2.toFixed(2)),
+        y2: Number(previewLine.value.y2.toFixed(2))
+      })
       isDrawing.value = false
       previewLine.value = null
     }
@@ -193,7 +209,7 @@ const handleMouseDown = (event) => {
 
     if (isDoubleClick && currentPointsForPolyline.value.length > 1) {
       // Complete polyline
-      const points = currentPointsForPolyline.value.map((p) => `${p.x},${p.y}`).join(' ')
+      const points = currentPointsForPolyline.value.map((p) => `${Number(p.x.toFixed(2))},${Number(p.y.toFixed(2))}`).join(' ')
       polylines.value.push({ points })
       currentPointsForPolyline.value = []
       isDrawing.value = false
@@ -216,10 +232,11 @@ const handleMouseMove = (event) => {
     previewLine.value.x2 = pos.x
     previewLine.value.y2 = pos.y
   } else if (tool.value === 'polyline' && currentPointsForPolyline.value.length > 0) {
-    previewPolyline.value = [
-      ...currentPointsForPolyline.value.map((p) => `${p.x},${p.y}`),
-      `${pos.x},${pos.y}`
+    const points = [
+      ...currentPointsForPolyline.value.map((p) => `${Number(p.x.toFixed(2))},${Number(p.y.toFixed(2))}`),
+      `${Number(pos.x.toFixed(2))},${Number(pos.y.toFixed(2))}`
     ].join(' ')
+    previewPolyline.value = points
   }
 }
 
@@ -232,7 +249,7 @@ const updatePolylinePreview = () => {
   if (currentPointsForPolyline.value.length === 0) {
     previewPolyline.value = null
   } else {
-    previewPolyline.value = currentPointsForPolyline.value.map((p) => `${p.x},${p.y}`).join(' ')
+    previewPolyline.value = currentPointsForPolyline.value.map((p) => `${Number(p.x.toFixed(2))},${Number(p.y.toFixed(2))}`).join(' ')
   }
 }
 
@@ -268,7 +285,7 @@ const savePecs = async () => {
     id: generateGUID(),
     name: trimmedName,
     svg: {
-      viewBox: '0 0 800 600',
+      viewBox: '0 0 100 100',
       content: svgCode.value
     },
     active: true
@@ -343,9 +360,19 @@ const savePecs = async () => {
   overflow: hidden;
 }
 
-.svg-canvas {
+.svg-wrapper {
   width: 100%;
   height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.svg-canvas {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  max-height: 100%;
   background-color: white;
   border: 1px solid #d1d5db;
   border-radius: 0.375rem;

@@ -366,13 +366,15 @@ const savePecs = async () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 .svg-canvas {
-  width: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
   height: auto;
   aspect-ratio: 1 / 1;
-  max-height: 100%;
   background-color: white;
   border: 1px solid #d1d5db;
   border-radius: 0.375rem;

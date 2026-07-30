@@ -35,6 +35,12 @@
           <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
             <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e5e7eb" stroke-width="0.5"/>
           </pattern>
+          <marker id="marker-dot" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto" markerUnits="strokeWidth">
+            <circle cx="3" cy="3" r="2" fill="currentColor"/>
+          </marker>
+          <marker id="marker-arrow" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">
+            <path d="M0,0 L6,3 L0,6 Z" fill="currentColor"/>
+          </marker>
         </defs>
         <rect width="100%" height="100%" fill="url(#grid)" />
 
@@ -46,19 +52,25 @@
           :y1="line.y1"
           :x2="line.x2"
           :y2="line.y2"
-          stroke="#6366f1"
-          stroke-width="2"
+          :stroke="line.stroke"
+          :stroke-width="line.strokeWidth"
+          :marker-start="getMarkerId(line.startStyle)"
+          :marker-end="getMarkerId(line.endStyle)"
+          :style="{ color: line.stroke }"
           class="drawing-element"
         />
         <polyline
           v-for="(polyline, idx) in polylines"
           :key="`polyline-${idx}`"
           :points="polyline.points"
-          stroke="#6366f1"
-          stroke-width="2"
+          :stroke="polyline.stroke"
+          :stroke-width="polyline.strokeWidth"
+          :marker-start="getMarkerId(polyline.startStyle)"
+          :marker-end="getMarkerId(polyline.endStyle)"
           fill="none"
           stroke-linejoin="round"
           stroke-linecap="round"
+          :style="{ color: polyline.stroke }"
           class="drawing-element"
         />
         <!-- Preview line during draw -->
@@ -68,19 +80,25 @@
           :y1="previewLine.y1"
           :x2="previewLine.x2"
           :y2="previewLine.y2"
-          stroke="#a5b4fc"
-          stroke-width="2"
+          :stroke="lineColor"
+          :stroke-width="lineWidth"
+          :marker-start="getMarkerId(startPointStyle)"
+          :marker-end="getMarkerId(endPointStyle)"
+          :style="{ color: lineColor }"
           stroke-dasharray="5,5"
         />
         <!-- Preview polyline during draw -->
         <polyline
           v-if="isDrawing && previewPolyline"
           :points="previewPolyline"
-          stroke="#a5b4fc"
-          stroke-width="2"
+          :stroke="lineColor"
+          :stroke-width="lineWidth"
+          :marker-start="getMarkerId(startPointStyle)"
+          :marker-end="getMarkerId(endPointStyle)"
           fill="none"
           stroke-linejoin="round"
           stroke-linecap="round"
+          :style="{ color: lineColor }"
           stroke-dasharray="5,5"
         />
       </svg>
@@ -92,6 +110,30 @@
           <p class="tool-description">
             {{ tool === 'line' ? 'Click twice to draw a line' : 'Click multiple times to draw, double-click to finish' }}
           </p>
+          <div class="tool-settings">
+            <div class="setting-row">
+              <label class="input-label" for="line-color">Line color</label>
+              <input id="line-color" type="color" v-model="lineColor" />
+            </div>
+            <div class="setting-row">
+              <label class="input-label" for="line-width">Line width</label>
+              <select id="line-width" v-model.number="lineWidth" class="select-input">
+                <option v-for="size in lineWidthOptions" :key="size" :value="size">{{ size }}</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <label class="input-label" for="start-style">Start point style</label>
+              <select id="start-style" v-model="startPointStyle" class="select-input">
+                <option v-for="style in pointStyles" :key="style.value" :value="style.value">{{ style.label }}</option>
+              </select>
+            </div>
+            <div class="setting-row">
+              <label class="input-label" for="end-style">End point style</label>
+              <select id="end-style" v-model="endPointStyle" class="select-input">
+                <option v-for="style in pointStyles" :key="style.value" :value="style.value">{{ style.label }}</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <div class="sidebar-section">
@@ -144,20 +186,44 @@ const previewPolyline = ref(null)
 const svgCanvas = ref(null)
 const lastClickTime = ref(0)
 const name = ref('')
+const lineColor = ref('#6366f1')
+const lineWidth = ref(2)
+const startPointStyle = ref('none')
+const endPointStyle = ref('none')
+
+const pointStyles = [
+  { value: 'none', label: 'None' },
+  { value: 'dot', label: 'Dot' },
+  { value: 'arrow', label: 'Arrow' }
+]
+
+const lineWidthOptions = [1, 2, 3, 4, 5, 6, 8, 10]
+
+const getMarkerId = (style) => {
+  if (style === 'arrow') return 'url(#marker-arrow)'
+  if (style === 'dot') return 'url(#marker-dot)'
+  return null
+}
 
 // Use the same internal coordinate system as PECS cards
 const VIEWBOX = { x: 0, y: 0, width: 100, height: 100 }
 
 const svgCode = computed(() => {
   const fmt = (n) => Number(n).toFixed(2)
-  let svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">\n'
+  const markerDefs = `  <defs>\n    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">\n      <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#e5e7eb" stroke-width="0.5"/>\n    </pattern>\n    <marker id="marker-dot" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto" markerUnits="strokeWidth">\n      <circle cx="3" cy="3" r="2" fill="currentColor"/>\n    </marker>\n    <marker id="marker-arrow" markerWidth="10" markerHeight="10" refX="0" refY="3" orient="auto" markerUnits="strokeWidth">\n      <path d="M0,0 L6,3 L0,6 Z" fill="currentColor"/>\n    </marker>\n  </defs>\n`
+
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">\n${markerDefs}`
 
   lines.value.forEach((line) => {
-    svg += `  <line x1="${fmt(line.x1)}" y1="${fmt(line.y1)}" x2="${fmt(line.x2)}" y2="${fmt(line.y2)}" stroke="#6366f1" stroke-width="2"/>\n`
+    const markerStart = getMarkerId(line.startStyle)
+    const markerEnd = getMarkerId(line.endStyle)
+    svg += `  <line x1="${fmt(line.x1)}" y1="${fmt(line.y1)}" x2="${fmt(line.x2)}" y2="${fmt(line.y2)}" stroke="${line.stroke}" stroke-width="${line.strokeWidth}" style="color: ${line.stroke};"${markerStart ? ` marker-start=\"${markerStart}\"` : ''}${markerEnd ? ` marker-end=\"${markerEnd}\"` : ''}/>\n`
   })
 
   polylines.value.forEach((polyline) => {
-    svg += `  <polyline points="${polyline.points}" stroke="#6366f1" stroke-width="2" fill="none" stroke-linejoin="round" stroke-linecap="round"/>\n`
+    const markerStart = getMarkerId(polyline.startStyle)
+    const markerEnd = getMarkerId(polyline.endStyle)
+    svg += `  <polyline points="${polyline.points}" stroke="${polyline.stroke}" stroke-width="${polyline.strokeWidth}" fill="none" stroke-linejoin="round" stroke-linecap="round" style="color: ${polyline.stroke};"${markerStart ? ` marker-start=\"${markerStart}\"` : ''}${markerEnd ? ` marker-end=\"${markerEnd}\"` : ''}/>\n`
   })
 
   svg += '</svg>'
@@ -198,7 +264,11 @@ const handleMouseDown = (event) => {
         x1: Number(previewLine.value.x1.toFixed(2)),
         y1: Number(previewLine.value.y1.toFixed(2)),
         x2: Number(previewLine.value.x2.toFixed(2)),
-        y2: Number(previewLine.value.y2.toFixed(2))
+        y2: Number(previewLine.value.y2.toFixed(2)),
+        stroke: lineColor.value,
+        strokeWidth: lineWidth.value,
+        startStyle: startPointStyle.value,
+        endStyle: endPointStyle.value
       })
       isDrawing.value = false
       previewLine.value = null
@@ -210,7 +280,13 @@ const handleMouseDown = (event) => {
     if (isDoubleClick && currentPointsForPolyline.value.length > 1) {
       // Complete polyline
       const points = currentPointsForPolyline.value.map((p) => `${Number(p.x.toFixed(2))},${Number(p.y.toFixed(2))}`).join(' ')
-      polylines.value.push({ points })
+      polylines.value.push({
+        points,
+        stroke: lineColor.value,
+        strokeWidth: lineWidth.value,
+        startStyle: startPointStyle.value,
+        endStyle: endPointStyle.value
+      })
       currentPointsForPolyline.value = []
       isDrawing.value = false
       previewPolyline.value = null
@@ -413,6 +489,26 @@ const savePecs = async () => {
   font-size: 0.8rem;
   color: #6b7280;
   line-height: 1.4;
+}
+
+.tool-settings {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.setting-row {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.select-input {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  background-color: white;
+  color: #111827;
 }
 
 .stat {
